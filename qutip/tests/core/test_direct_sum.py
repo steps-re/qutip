@@ -6,6 +6,7 @@ from qutip import (
     operator_to_vector, vector_to_operator
 )
 from qutip.core.dimensions import Dimensions, SumSpace
+from qutip.core import data as _data
 
 from qutip.core.direct_sum import (
     direct_sum, direct_sum_sparse, direct_component, set_direct_component
@@ -354,6 +355,27 @@ def test_set_direct_component_validation():
         set_direct_component(matrix, basis(2, 0), 1, 0)
     with pytest.raises(ValueError):
         set_direct_component(matrix, sigmax(), 0, 0)
+
+
+def test_set_direct_component_dtype():
+    """
+    Regression test: the `dtype` keyword argument documented by
+    `set_direct_component`'s @overload type stubs used to be missing from
+    the real implementation's signature, so `set_direct_component(...,
+    dtype=...)`, exactly as the type hints advertise, raised a TypeError.
+    """
+    matrix = direct_sum([basis(2, 0), basis(2, 0)], dtype="CSR")
+    assert matrix.dtype is _data.CSR
+
+    replacement = Qobj(np.full((2, 1), 1), dims=[[2], [1]])
+    new_sum = set_direct_component(matrix, replacement, 0, dtype="Dense")
+    assert new_sum.dtype is _data.Dense
+    _assert_equal(direct_component(new_sum, 0), replacement)
+
+    # Without an explicit dtype, the previous default-dtype-scope behaviour
+    # is unchanged.
+    new_sum_default = set_direct_component(matrix, replacement, 0)
+    assert new_sum_default.dtype is _data.CSR
 
 
 def test_sum_times_sum():

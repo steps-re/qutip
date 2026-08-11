@@ -486,7 +486,7 @@ def set_direct_component(
     ...
 
 
-def set_direct_component(sum_qobj, component, *index):
+def set_direct_component(sum_qobj, component, *index, dtype=None):
     """
     Set (replace) a component in a direct sum ``Qobj``. The function returns a
     new object where the component at the given index is replaced with
@@ -503,6 +503,9 @@ def set_direct_component(sum_qobj, component, *index):
         row and column spaces are sums, two indices (``row``, ``col``) are
         required. If only one side is a sum, a single index is accepted and
         interpreted as the index into the summed side.
+    dtype : type, str, optional
+        Data type of the returned object. If not given, it is determined
+        from ``sum_qobj`` following the ``default_dtype_scope`` setting.
 
     Returns
     -------
@@ -516,10 +519,11 @@ def set_direct_component(sum_qobj, component, *index):
     using `np.s_[start:stop]`. Custom steps are not supported.
     """
 
-    if settings.core["default_dtype_scope"] == "full":
-        dtype = settings.core["default_dtype"] or sum_qobj.dtype
-    else:
-        dtype = sum_qobj.dtype
+    if dtype is None:
+        if settings.core["default_dtype_scope"] == "full":
+            dtype = settings.core["default_dtype"] or sum_qobj.dtype
+        else:
+            dtype = sum_qobj.dtype
 
     to_index, from_index = _check_component_index(sum_qobj._dims, index)
     component_dims, row_start, _, col_start, _ =\
