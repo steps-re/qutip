@@ -316,9 +316,39 @@ def einsum(subscripts, *operands):
     result = np.einsum(subscripts, *operands_array)
     if result.shape == ():
         return result
+
+    # Determine where to split the output axes into "to" vs. "from" from
+    # the subscripts themselves, instead of assuming the result always
+    # splits evenly in half (``result.ndim // 2``). That assumption breaks
+    # for non-square operands, where the number of "to" axes need not
+    # equal the number of "from" axes. As with numpy's own einsum, the
+    # position of each label within the (possibly reordered) "->" output
+    # spec determines its place in the result; only the count of leading
+    # "to"-axes needs correcting here, using the role (to vs. from) each
+    # label had in its originating operand.
+    if "->" in subscripts:
+        in_spec, out_spec = subscripts.split("->")
+    else:
+        # Implicit output (numpy's convention): indices appearing exactly
+        # once across all operands are kept, in sorted order.
+        in_spec = subscripts
+        counts = {}
+        for label in in_spec.replace(",", ""):
+            counts[label] = counts.get(label, 0) + 1
+        out_spec = "".join(sorted(
+            label for label, n in counts.items() if n == 1
+        ))
+
+    label_role = {}
+    for op, spec in zip(operands, in_spec.split(",")):
+        n_to = len(op._dims.to_.flat())
+        for pos, label in enumerate(spec):
+            label_role.setdefault(label, "to" if pos < n_to else "from")
+
+    n_to_out = sum(label_role[label] == "to" for label in out_spec)
     dims = [
-        [d for d in result.shape[:result.ndim // 2]],
-        [d for d in result.shape[result.ndim // 2:]]
+        list(result.shape[:n_to_out]),
+        list(result.shape[n_to_out:]),
     ]
     return from_tensor_rep(result, dims)
 

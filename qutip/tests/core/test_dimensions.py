@@ -453,6 +453,20 @@ def test_einsum(subscripts, operands, expected):
     assert einsum(subscripts, *operands) == expected
 
 
+def test_einsum_nonsquare_dims():
+    """
+    Regression test: `einsum`'s output ``dims`` used to be computed by
+    blindly bisecting ``result.shape`` in half (``ndim // 2``) instead of
+    reading the "to"/"from" role of each output axis off the subscripts.
+    For a non-square operand (unequal numbers of "to" and "from" axes),
+    this silently produced the wrong ``dims`` with no error raised.
+    """
+    op = qutip.Qobj(np.arange(12).reshape(6, 2), dims=[[2, 3], [2]])
+    result = einsum("abc->abc", op)
+    assert result.dims == op.dims
+    assert result == op
+
+
 @pytest.mark.parametrize(["list_dims", "expected"], [
     pytest.param([[4, 4], [1, 1, 1]], [[4, 4], [1]]),
     pytest.param([[1, 1], [1, 1, 1]], [[1], [1]]),
