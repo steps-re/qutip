@@ -2,9 +2,9 @@ import numpy as np
 import scipy.sparse.linalg
 import scipy.linalg
 
-from .eigen import eigs_dense
+from .eigen import eigs_dense, eigs_csr
 from .dense import Dense
-from .csr import CSR
+from .csr import CSR, from_dense
 from .dia import Dia
 from . import dia
 from .make import diag
@@ -140,19 +140,30 @@ logm.add_specialisations([
 ], _defer=True)
 
 
-def sqrtm_dense(matrix, /, isherm=None) -> Dense:
+def sqrtm_dense(
+    matrix, /, isherm=None, sparse=False, tol=0, maxiter=100000
+) -> Dense:
     if matrix.shape[0] != matrix.shape[1]:
         raise ValueError("can only compute logarithm square matrix")
 
     # Spectral Decomposition for Hermitian matrices
     # to avoid SciPy's singularity warning.
     if (isherm if isherm is not None else isherm_dense(matrix)):
-        evals, evecs = eigs_dense(matrix, isherm=True)
+        if sparse:
+            # Use the iterative sparse eigensolver (much slower than the
+            # dense one, but with a lower memory footprint) to compute the
+            # spectral decomposition; only relevant for the Hermitian case,
+            # since the non-Hermitian branch below has no sparse equivalent.
+            evals, evecs = eigs_csr(
+                from_dense(matrix), isherm=True, tol=tol, maxiter=maxiter,
+            )
+        else:
+            evals, evecs = eigs_dense(matrix, isherm=True)
         sqrt_lambda = np.sqrt(evals.astype(complex))
         diag_sqrt_lamda = diag(sqrt_lambda, 0, matrix.shape, dtype=Dense)
         v_mid = matmul_dense(evecs, diag_sqrt_lamda)
         return matmul_dag_dense(v_mid, evecs)
-    
+
     return Dense(scipy.linalg.sqrtm(matrix.as_ndarray()))
 
 

@@ -1,5 +1,6 @@
 import numbers
 import operator
+import unittest.mock
 import pytest
 
 import numpy as np
@@ -779,6 +780,39 @@ def test_Qobj_sqrtm():
     A = qutip.Qobj(data)
     B = A.sqrtm()
     assert A == B * B
+
+
+def test_Qobj_sqrtm_sparse_args_are_used():
+    """
+    Regression test: Qobj.sqrtm's sparse/tol/maxiter parameters used to be
+    silently dropped before being passed to the data-layer implementation,
+    so `sparse=True` had no effect at all. Check that the sparse eigensolver
+    is actually invoked (with the given tol/maxiter) when sparse=True, and
+    is not invoked when sparse=False (the default).
+    """
+    import sys
+    import qutip.core.data.expm  # noqa: F401 (ensure submodule is imported)
+    expm_module = sys.modules["qutip.core.data.expm"]
+
+    A = qutip.rand_herm(8, density=1)
+
+    with unittest.mock.patch.object(
+        expm_module, "eigs_csr", wraps=expm_module.eigs_csr
+    ) as spy:
+        A.sqrtm(sparse=True, tol=1e-9, maxiter=1234)
+        assert spy.called
+        assert spy.call_args.kwargs["tol"] == 1e-9
+        assert spy.call_args.kwargs["maxiter"] == 1234
+
+    with unittest.mock.patch.object(
+        expm_module, "eigs_csr", wraps=expm_module.eigs_csr
+    ) as spy:
+        A.sqrtm(sparse=False)
+        assert not spy.called
+
+    # The sparse path must still produce a numerically-correct sqrt.
+    B_sparse = A.sqrtm(sparse=True, tol=1e-10, maxiter=5000)
+    assert A == B_sparse * B_sparse
 
 
 def test_Qobj_inv():
