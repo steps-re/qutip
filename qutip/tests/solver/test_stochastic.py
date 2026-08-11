@@ -453,6 +453,38 @@ def test_run_from_experiment_close(method, heterodyne):
     )
 
 
+def test_run_from_experiment_restores_dt():
+    """
+    Regression test: `run_from_experiment` used to only restore the
+    integrator's overridden `dt` option on the exception path, leaking the
+    just-used `dt` (derived from `tlist`) into the solver's persistent
+    integrator options on the successful path. A later `run`/
+    `run_from_experiment` call on the same solver instance would then
+    silently use the wrong step size.
+    """
+    N = 5
+    H = num(N)
+    a = destroy(N)
+    sc_ops = [a]
+    psi0 = basis(N, N - 1)
+
+    original_dt = 0.0025
+    solver = SSESolver(
+        H, sc_ops, heterodyne=False,
+        options={"dt": original_dt, "method": "euler"},
+    )
+    assert solver._integrator.options["dt"] == original_dt
+
+    # tlist spacing intentionally differs from the solver's own "dt" option.
+    tlist = np.linspace(0, 0.01, 11)
+    assert not np.isclose(tlist[1] - tlist[0], original_dt)
+    noise = np.zeros((1, len(tlist) - 1))
+
+    solver.run_from_experiment(psi0, tlist, noise)
+
+    assert solver._integrator.options["dt"] == original_dt
+
+
 @pytest.mark.parametrize(
     "method", ["euler", "milstein", "platen", "pred_corr"]
 )

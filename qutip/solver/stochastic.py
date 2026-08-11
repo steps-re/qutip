@@ -825,20 +825,19 @@ class StochasticSolver(MultiTrajSolver):
             noise, tlist, len(self.rhs.sc_ops), self.heterodyne, measurement
         )
         state0 = self._prepare_state(state)
+        old_dt = None
+        if "dt" in self._integrator.options:
+            old_dt = self._integrator.options["dt"]
+            self._integrator.options["dt"] = dt
         try:
-            old_dt = None
-            if "dt" in self._integrator.options:
-                old_dt = self._integrator.options["dt"]
-                self._integrator.options["dt"] = dt
             mid_time = time()
             result = self._initialize_run_one_traj(
                 None, state0, tlist, e_ops, generator=generator
             )
             _, result = self._integrate_one_traj(None, tlist, result)
-        except Exception as err:
+        finally:
             if old_dt is not None:
                 self._integrator.options["dt"] = old_dt
-            raise
 
         stats['preparation time'] += mid_time - start_time
         stats['run time'] = time() - mid_time
